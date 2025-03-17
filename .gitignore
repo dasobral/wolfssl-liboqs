@@ -433,3 +433,4 @@ MagicCrypto
 debian/changelog
 debian/control
 *.deb
+.qodo

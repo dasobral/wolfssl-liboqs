@@ -8876,6 +8876,30 @@ static int SendTls13CertificateVerify(WOLFSSL* ssl)
             #if defined(HAVE_FALCON)
             else if (ssl->hsType == DYNAMIC_TYPE_FALCON) {
                 falcon_key* fkey = (falcon_key*)ssl->hsKey;
+
+                /* FIX: Check for mismatch between ctx privateKeyType and current keyType */
+                if (ssl->ctx->privateKeyType == falcon_level1_sa_algo && 
+                    ssl->buffers.keyType == falcon_level5_sa_algo) {
+                    WOLFSSL_MSG_EX("DEBUG: Fixing keyType from %d to %d for Falcon Level 1", 
+                        ssl->buffers.keyType, ssl->ctx->privateKeyType);
+                    ssl->buffers.keyType = ssl->ctx->privateKeyType;
+                }
+
+                // Set exact signature size based on the level
+                if (fkey->level == 1) {
+                    sig->length = FALCON_LEVEL1_SIG_SIZE;
+                } else {
+                    sig->length = FALCON_LEVEL5_SIG_SIZE;
+                }
+
+                WOLFSSL_MSG("=== TLS13 CERTIFICATE VERIFY DEBUG ===");
+                WOLFSSL_MSG_EX("Before sign - sig->length: %u", sig->length);
+                WOLFSSL_MSG_EX("Before sign - args->length: %u", args->length);
+                WOLFSSL_MSG_EX("Falcon key level: %d", fkey->level);
+                WOLFSSL_MSG_EX("Verify buffer address: %p", args->verify + HASH_SIG_SIZE + VERIFY_HEADER);
+                WOLFSSL_MSG_EX("args->verify address: %p", args->verify);
+                WOLFSSL_MSG_EX("args->sigDataSz: %u", args->sigDataSz);
+
                 byte level = 0;
                 if (wc_falcon_get_level(fkey, &level) != 0) {
                     ERROR_OUT(ALGO_ID_E, exit_scv);
@@ -8894,6 +8918,38 @@ static int SendTls13CertificateVerify(WOLFSSL* ssl)
             #if defined(HAVE_DILITHIUM)
             else if (ssl->hsType == DYNAMIC_TYPE_DILITHIUM) {
                 dilithium_key* fkey = (dilithium_key*)ssl->hsKey;
+
+                /* FIX: Check for mismatch between ctx privateKeyType and current keyType */
+                if ((ssl->ctx->privateKeyType == dilithium_level2_sa_algo && 
+                    ssl->buffers.keyType != dilithium_level2_sa_algo) ||
+                (ssl->ctx->privateKeyType == dilithium_level3_sa_algo && 
+                    ssl->buffers.keyType != dilithium_level3_sa_algo) ||
+                (ssl->ctx->privateKeyType == dilithium_level5_sa_algo && 
+                    ssl->buffers.keyType != dilithium_level5_sa_algo)) {
+                
+                    WOLFSSL_MSG_EX("DEBUG: Fixing keyType from %d to %d for Dilithium Level %d",
+                        ssl->buffers.keyType, ssl->ctx->privateKeyType, 
+                        (ssl->ctx->privateKeyType == dilithium_level2_sa_algo) ? 2 : 
+                        (ssl->ctx->privateKeyType == dilithium_level3_sa_algo) ? 3 : 5);
+                
+                    ssl->buffers.keyType = ssl->ctx->privateKeyType;
+                }
+                // Set exact signature size based on the level
+                if (fkey->level == 2) {
+                    sig->length = DILITHIUM_LEVEL2_SIG_SIZE;
+                } else if (fkey->level == 3) {
+                    sig->length = DILITHIUM_LEVEL3_SIG_SIZE;
+                } else {
+                    sig->length = DILITHIUM_LEVEL5_SIG_SIZE;
+                }
+                WOLFSSL_MSG("=== TLS13 CERTIFICATE VERIFY DEBUG ===");
+                WOLFSSL_MSG_EX("Before sign - sig->length: %u", sig->length);
+                WOLFSSL_MSG_EX("Before sign - args->length: %u", args->length);
+                WOLFSSL_MSG_EX("Dilithium key level: %d", fkey->level);
+                WOLFSSL_MSG_EX("Verify buffer address: %p", args->verify + HASH_SIG_SIZE + VERIFY_HEADER);
+                WOLFSSL_MSG_EX("args->verify address: %p", args->verify);
+                WOLFSSL_MSG_EX("args->sigDataSz: %u", args->sigDataSz);
+
                 byte level = 0;
                 if (wc_dilithium_get_level(fkey, &level) != 0) {
                     ERROR_OUT(ALGO_ID_E, exit_scv);

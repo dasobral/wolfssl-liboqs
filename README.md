@@ -1,5 +1,21 @@
 # wolfSSL Embedded SSL/TLS Library
 
+## DISCLAIMER: This is a hard-fork
+
+We have forked the **v.5.7.0-stable** version of the [wolfSSL embedded SSL library](https://www.wolfssl.com/products/wolfssl/) for experimental purposes. We desired to continue our work with Post-Quantum Cryptography on constrained devices using wolfSSL with the [liboqs](https://github.com/open-quantum-safe/liboqs) support, which will be soon discontinued by the main wolfSSL project. We therefore do not plan to keep track of the wolfSSL development plans in this repository. 
+
+### Fixes versus the original v.5.7.0-stable version (in development):
+
+We have introduced the necessary fixes to make all NIST levels for FALCON and DILITHIUM signatures available and working. We have tested our implementation with our suite for benchmarking our wolfSSL implemenation into [CoAP](https://github.com/obgm/libcoap), using this:
+
+- liboqs 0.8.0
+- Our fixed wolfssl v5.7.0-stable
+- libcoap `develop` branch
+
+
+
+## Description 
+
 The [wolfSSL embedded SSL library](https://www.wolfssl.com/products/wolfssl/) 
 (formerly CyaSSL) is a lightweight SSL/TLS library written in ANSI C and
 targeted for embedded, RTOS, and resource-constrained environments - primarily

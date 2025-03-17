@@ -20,6 +20,7 @@
  */
 
 /* Based on ed448.c and Reworked for Falcon by Anthony Hu. */
+/* Small fixes & extra logging for keyType verification by Daniel Sobral-Blanco. */
 
 #ifdef HAVE_CONFIG_H
     #include <config.h>
@@ -62,6 +63,35 @@ int wc_falcon_sign_msg(const byte* in, word32 inLen,
                               falcon_key* key, WC_RNG* rng)
 {
     int ret = 0;
+
+    /* Extra debugging messages */
+
+    WOLFSSL_MSG("=== FALCON SIGN DIAGNOSTIC INFO ===");
+    WOLFSSL_MSG_EX("Key level: %d", key->level);
+    WOLFSSL_MSG_EX("Input length: %u", inLen);
+    WOLFSSL_MSG_EX("Output buffer size: %u", *outLen);
+    WOLFSSL_MSG_EX("FALCON_LEVEL1_SIG_SIZE: %d", FALCON_LEVEL1_SIG_SIZE);
+    WOLFSSL_MSG_EX("FALCON_LEVEL5_SIG_SIZE: %d", FALCON_LEVEL5_SIG_SIZE);
+    WOLFSSL_MSG_EX("FALCON_MAX_SIG_SIZE: %d", FALCON_MAX_SIG_SIZE);
+    WOLFSSL_MSG_EX("Key validity check: %s", (key && in && out && outLen && rng) ? "PASS" : "FAIL");
+    WOLFSSL_MSG_EX("Key->k non-null: %s", (key->k != NULL) ? "YES" : "NO");
+    WOLFSSL_MSG_EX("Key->prvKeySet: %d", key->prvKeySet);
+    WOLFSSL_MSG_EX("Key->pubKeySet: %d", key->pubKeySet);
+    WOLFSSL_MSG_EX("Out buffer address: %p", out);
+    
+    /* Add debug at the buffer size check */
+    if ((key->level == 1) && (*outLen < FALCON_LEVEL1_SIG_SIZE)) {
+        WOLFSSL_MSG_EX("ERROR - Buffer too small for Level 1 signature. Need %d, have %u", 
+               FALCON_LEVEL1_SIG_SIZE, *outLen);
+        *outLen = FALCON_LEVEL1_SIG_SIZE;
+        return BUFFER_E;
+    }
+    else if ((key->level == 5) && (*outLen < FALCON_LEVEL5_SIG_SIZE)) {
+        WOLFSSL_MSG_EX("ERROR - Buffer too small for Level 5 signature. Need %d, have %u", 
+               FALCON_LEVEL5_SIG_SIZE, *outLen);
+        *outLen = FALCON_LEVEL5_SIG_SIZE;
+        return BUFFER_E;
+    }
 
     /* sanity check on arguments */
     if ((in == NULL) || (out == NULL) || (outLen == NULL) || (key == NULL)) {
@@ -458,6 +488,12 @@ static int parse_private_key(const byte* priv, word32 privSz,
     int ret = 0;
     int length = 0;
 
+    WOLFSSL_MSG_EX("Expected for Level 1: %u (KEY_SIZE: %u + PUB_KEY_SIZE: %u)", 
+        FALCON_LEVEL1_KEY_SIZE + FALCON_LEVEL1_PUB_KEY_SIZE,
+        FALCON_LEVEL1_KEY_SIZE, FALCON_LEVEL1_PUB_KEY_SIZE);
+    WOLFSSL_MSG_EX("Expected for Level 5: %u (KEY_SIZE: %u + PUB_KEY_SIZE: %u)",
+        FALCON_LEVEL5_KEY_SIZE + FALCON_LEVEL5_PUB_KEY_SIZE,
+        FALCON_LEVEL5_KEY_SIZE, FALCON_LEVEL5_PUB_KEY_SIZE);
     /* sanity check on arguments */
     if ((priv == NULL) || (key == NULL)) {
         return BAD_FUNC_ARG;
@@ -481,12 +517,14 @@ static int parse_private_key(const byte* priv, word32 privSz,
     *outSz = privSz - idx;
 
     /* And finally it is concat(priv,pub). Key size check. */
-    if ((key->level == 1) && (*outSz != FALCON_LEVEL1_KEY_SIZE +
-                                       FALCON_LEVEL1_PUB_KEY_SIZE)) {
+    if ((key->level == 1) && (*outSz < FALCON_LEVEL1_KEY_SIZE + FALCON_LEVEL1_PUB_KEY_SIZE)) {
+        WOLFSSL_MSG_EX("Size too small for Level 1 key: %u < %u", 
+               *outSz, FALCON_LEVEL1_KEY_SIZE + FALCON_LEVEL1_PUB_KEY_SIZE);
         return BAD_FUNC_ARG;
     }
-    else if ((key->level == 5) && (*outSz != FALCON_LEVEL5_KEY_SIZE +
-                                            FALCON_LEVEL5_PUB_KEY_SIZE)) {
+    else if ((key->level == 5) && (*outSz < FALCON_LEVEL5_KEY_SIZE + FALCON_LEVEL5_PUB_KEY_SIZE)) {
+        WOLFSSL_MSG_EX("Size too small for Level 5 key: %u < %u", 
+               *outSz, FALCON_LEVEL5_KEY_SIZE + FALCON_LEVEL5_PUB_KEY_SIZE);
         return BAD_FUNC_ARG;
     }
 

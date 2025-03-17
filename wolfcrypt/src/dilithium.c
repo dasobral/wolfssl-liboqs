@@ -20,6 +20,7 @@
  */
 
 /* Based on ed448.c and Reworked for Dilithium by Anthony Hu. */
+/* Small fixes & extra logging for keyType verification by Daniel Sobral-Blanco. */
 
 #ifdef HAVE_CONFIG_H
     #include <config.h>
@@ -62,6 +63,40 @@ int wc_dilithium_sign_msg(const byte* in, word32 inLen,
                           dilithium_key* key, WC_RNG* rng)
 {
     int ret = 0;
+
+    /* Extra debugging messages */
+
+    WOLFSSL_MSG("=== DILITHIUM SIGN DIAGNOSTIC INFO ===");
+    WOLFSSL_MSG_EX("Key level: %d", key->level);
+    WOLFSSL_MSG_EX("Input length: %u", inLen);
+    WOLFSSL_MSG_EX("Output buffer size: %u", *outLen);
+    WOLFSSL_MSG_EX("DILITHIUM_LEVEL2_SIG_SIZE: %d", DILITHIUM_LEVEL2_SIG_SIZE);
+    WOLFSSL_MSG_EX("DILITHIUM_LEVEL3_SIG_SIZE: %d", DILITHIUM_LEVEL3_SIG_SIZE);
+    WOLFSSL_MSG_EX("DILITHIUM_LEVEL5_SIG_SIZE: %d", DILITHIUM_LEVEL5_SIG_SIZE);
+    WOLFSSL_MSG_EX("DILITHIUM_MAX_SIG_SIZE: %d", DILITHIUM_MAX_SIG_SIZE);
+    WOLFSSL_MSG_EX("Key validity check: %s", (key && in && out && outLen && rng) ? "PASS" : "FAIL");
+    WOLFSSL_MSG_EX("Key->k non-null: %s", (key->k != NULL) ? "YES" : "NO");
+    WOLFSSL_MSG_EX("Key->prvKeySet: %d", key->prvKeySet);
+    WOLFSSL_MSG_EX("Key->pubKeySet: %d", key->pubKeySet);
+    WOLFSSL_MSG_EX("Out buffer address: %p", out);
+    
+    /* Add debug at the buffer size check */
+    if ((key->level == 2) && (*outLen < DILITHIUM_LEVEL2_SIG_SIZE)) {
+        WOLFSSL_MSG_EX("ERROR - Buffer too small for Level 1 signature. Need %d, have %u", 
+            DILITHIUM_LEVEL2_SIG_SIZE, *outLen);
+        *outLen = DILITHIUM_LEVEL2_SIG_SIZE;
+        return BUFFER_E;
+    } else if ((key->level == 3) && (*outLen < DILITHIUM_LEVEL3_SIG_SIZE)) {
+        WOLFSSL_MSG_EX("ERROR - Buffer too small for Level 3 signature. Need %d, have %u", 
+            DILITHIUM_LEVEL3_SIG_SIZE, *outLen);
+        *outLen = DILITHIUM_LEVEL3_SIG_SIZE;
+        return BUFFER_E;
+    } else if ((key->level == 5) && (*outLen < DILITHIUM_LEVEL5_SIG_SIZE)) {
+        WOLFSSL_MSG_EX("ERROR - Buffer too small for Level 5 signature. Need %d, have %u", 
+            DILITHIUM_LEVEL5_SIG_SIZE, *outLen);
+        *outLen = DILITHIUM_LEVEL5_SIG_SIZE;
+        return BUFFER_E;
+    }
 
     /* sanity check on arguments */
     if ((in == NULL) || (out == NULL) || (outLen == NULL) || (key == NULL)) {
@@ -477,6 +512,16 @@ static int parse_private_key(const byte* priv, word32 privSz,
     int ret = 0;
     int length = 0;
 
+    WOLFSSL_MSG_EX("Expected for Level 2: %u (KEY_SIZE: %u + PUB_KEY_SIZE: %u)", 
+        DILITHIUM_LEVEL2_KEY_SIZE + DILITHIUM_LEVEL2_PUB_KEY_SIZE,
+        DILITHIUM_LEVEL2_KEY_SIZE, DILITHIUM_LEVEL2_PUB_KEY_SIZE);
+    WOLFSSL_MSG_EX("Expected for Level 3: %u (KEY_SIZE: %u + PUB_KEY_SIZE: %u)", 
+        DILITHIUM_LEVEL3_KEY_SIZE + DILITHIUM_LEVEL3_PUB_KEY_SIZE,
+        DILITHIUM_LEVEL3_KEY_SIZE, DILITHIUM_LEVEL3_PUB_KEY_SIZE);
+    WOLFSSL_MSG_EX("Expected for Level 5: %u (KEY_SIZE: %u + PUB_KEY_SIZE: %u)",
+        DILITHIUM_LEVEL5_KEY_SIZE + DILITHIUM_LEVEL5_PUB_KEY_SIZE,
+        DILITHIUM_LEVEL5_KEY_SIZE, DILITHIUM_LEVEL5_PUB_KEY_SIZE);
+
     /* sanity check on arguments */
     if ((priv == NULL) || (key == NULL)) {
         return BAD_FUNC_ARG;
@@ -500,16 +545,19 @@ static int parse_private_key(const byte* priv, word32 privSz,
     *outSz = privSz - idx;
 
     /* And finally it is concat(priv,pub). Key size check. */
-    if ((key->level == 2) && (*outSz != DILITHIUM_LEVEL2_KEY_SIZE +
-                                        DILITHIUM_LEVEL2_PUB_KEY_SIZE)) {
+    if ((key->level == 2) && (*outSz < DILITHIUM_LEVEL2_KEY_SIZE + DILITHIUM_LEVEL2_PUB_KEY_SIZE)) {
+        WOLFSSL_MSG_EX("Size too small for Level 2 key: %u < %u", 
+            *outSz, DILITHIUM_LEVEL2_KEY_SIZE + DILITHIUM_LEVEL2_PUB_KEY_SIZE);                                    
         return BAD_FUNC_ARG;
     }
-    else if ((key->level == 3) && (*outSz != DILITHIUM_LEVEL3_KEY_SIZE +
-                                             DILITHIUM_LEVEL3_PUB_KEY_SIZE)) {
+    else if ((key->level == 3) && (*outSz < DILITHIUM_LEVEL3_KEY_SIZE + DILITHIUM_LEVEL3_PUB_KEY_SIZE)) {
+        WOLFSSL_MSG_EX("Size too small for Level 3 key: %u < %u", 
+            *outSz, DILITHIUM_LEVEL3_KEY_SIZE + DILITHIUM_LEVEL3_PUB_KEY_SIZE);                                        
         return BAD_FUNC_ARG;
     }
-    else if ((key->level == 5) && (*outSz != DILITHIUM_LEVEL5_KEY_SIZE +
-                                             DILITHIUM_LEVEL5_PUB_KEY_SIZE)) {
+    else if ((key->level == 5) && (*outSz < DILITHIUM_LEVEL5_KEY_SIZE + DILITHIUM_LEVEL5_PUB_KEY_SIZE)) {
+        WOLFSSL_MSG_EX("Size too small for Level 5 key: %u < %u", 
+            *outSz, DILITHIUM_LEVEL5_KEY_SIZE + DILITHIUM_LEVEL5_PUB_KEY_SIZE);                                                
         return BAD_FUNC_ARG;
     }
 

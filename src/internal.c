@@ -28060,18 +28060,58 @@ int DecodePrivateKey(WOLFSSL *ssl, word16* length)
         ssl->buffers.keyType == falcon_level5_sa_algo ||
         ssl->buffers.keyType == 0) {
 
+        /* Key size-based check to determine the actual falcon level*/
+        if (ssl->buffers.key != NULL && ssl->buffers.key->buffer != NULL) {
+            // Look at key size to determine what level it really is
+            word32 keySize = ssl->buffers.key->length;
+            WOLFSSL_MSG_EX("Falcon key buffer size: %u", keySize); 
+            
+            // If key size is closer to Level 1 (around 2178 bytes)
+            if (keySize < 3000) {
+                if (ssl->buffers.keyType == falcon_level5_sa_algo) {
+                    WOLFSSL_MSG_EX("Fixing keyType from %d to %d based on key size", 
+                           ssl->buffers.keyType, falcon_level1_sa_algo);
+                    ssl->buffers.keyType = falcon_level1_sa_algo;
+                }
+            }
+            // If key size is closer to Level 5 (around 4098 bytes)
+            else {
+                if (ssl->buffers.keyType == falcon_level1_sa_algo) {
+                    WOLFSSL_MSG_EX("Fixing keyType from %d to %d based on key size", 
+                           ssl->buffers.keyType, falcon_level5_sa_algo);
+                    ssl->buffers.keyType = falcon_level5_sa_algo;
+                }
+            }
+        }
+
         ssl->hsType = DYNAMIC_TYPE_FALCON;
+
+        /* Look at the original key during loading to determine real Falcon level */
+        /*if (ssl->hsType == DYNAMIC_TYPE_FALCON) {
+            Check if we have a mismatch between the context's privateKeyType and current keyType
+            if (ssl->ctx->privateKeyType == falcon_level1_sa_algo && 
+                ssl->buffers.keyType == falcon_level5_sa_algo) {
+                printf("Fixing keyType in DecodePrivateKey from %d to %d for Falcon Level 1\n", 
+                    ssl->buffers.keyType, ssl->ctx->privateKeyType);
+                ssl->buffers.keyType = ssl->ctx->privateKeyType;
+            }
+        }*/
+
         ret = AllocKey(ssl, ssl->hsType, &ssl->hsKey);
         if (ret != 0) {
             goto exit_dpk;
         }
 
+        // This is where we set the Falcon level - make sure it matches the keyType
         if (ssl->buffers.keyType == falcon_level1_sa_algo) {
+            WOLFSSL_MSG_EX("Setting Falcon level to 1 based on keyType: %d", ssl->buffers.keyType);
             ret = wc_falcon_set_level((falcon_key*)ssl->hsKey, 1);
         }
         else if (ssl->buffers.keyType == falcon_level5_sa_algo) {
+            // Default to level 5 if not specifically level 1
+            WOLFSSL_MSG_EX("Setting Falcon level to 5 based on keyType: %d", ssl->buffers.keyType);
             ret = wc_falcon_set_level((falcon_key*)ssl->hsKey, 5);
-        }
+        } 
         else {
             /* What if ssl->buffers.keyType is 0? We might want to do something
              * more graceful here. */
@@ -28110,7 +28150,7 @@ int DecodePrivateKey(WOLFSSL *ssl, word16* length)
             }
 
             /* Return the maximum signature length. */
-            *length = FALCON_MAX_SIG_SIZE;
+            *length = (word16)wc_falcon_sig_size((falcon_key*)ssl->hsKey);
 
             goto exit_dpk;
         }
@@ -28126,21 +28166,78 @@ int DecodePrivateKey(WOLFSSL *ssl, word16* length)
         ssl->buffers.keyType == dilithium_level5_sa_algo ||
         ssl->buffers.keyType == 0) {
 
+        /* Key size-based check to determine the actual Dilithium level */
+        if (ssl->buffers.key != NULL && ssl->buffers.key->buffer != NULL) {
+            // Look at key size to determine what level it really is
+            word32 keySize = ssl->buffers.key->length;
+            WOLFSSL_MSG_EX("Dilithium key buffer size: %u", keySize);
+            
+            // Check for Level 2 key (smallest)
+            if (keySize < 4500) {
+                if (ssl->buffers.keyType == dilithium_level5_sa_algo) {
+                    WOLFSSL_MSG_EX("Fixing keyType from %d to %d based on key size", 
+                        ssl->buffers.keyType, dilithium_level2_sa_algo);
+                    ssl->buffers.keyType = dilithium_level2_sa_algo;
+                }
+            }
+            // Check for Level 3 key (medium)
+            else if (keySize < 6500) {
+                if (ssl->buffers.keyType == dilithium_level5_sa_algo) {
+                    WOLFSSL_MSG_EX("Fixing keyType from %d to %d based on key size", 
+                        ssl->buffers.keyType, dilithium_level3_sa_algo);
+                    ssl->buffers.keyType = dilithium_level3_sa_algo;
+                }
+            }
+            // Default to Level 5 key (largest)
+            else {
+                if (ssl->buffers.keyType != dilithium_level5_sa_algo) {
+                    WOLFSSL_MSG_EX("Fixing keyType from %d to %d based on key size", 
+                        ssl->buffers.keyType, dilithium_level5_sa_algo);
+                    ssl->buffers.keyType = dilithium_level5_sa_algo;
+                }
+            }
+        }
+
         ssl->hsType = DYNAMIC_TYPE_DILITHIUM;
+
+        /* Look at the original key during loading to determine real Dilithium level */
+        /* if (ssl->hsType == DYNAMIC_TYPE_DILITHIUM) {
+            Check if we have a mismatch between the context's privateKeyType and current keyType 
+            if ((ssl->ctx->privateKeyType == dilithium_level2_sa_algo && 
+                ssl->buffers.keyType != dilithium_level2_sa_algo) ||
+                (ssl->ctx->privateKeyType == dilithium_level3_sa_algo && 
+                ssl->buffers.keyType != dilithium_level3_sa_algo) ||
+                (ssl->ctx->privateKeyType == dilithium_level5_sa_algo && 
+                ssl->buffers.keyType != dilithium_level5_sa_algo)) {
+                
+                printf("Fixing keyType in DecodePrivateKey from %d to %d for Dilithium Level %d",
+                    ssl->buffers.keyType, ssl->ctx->privateKeyType, 
+                    (ssl->ctx->privateKeyType == dilithium_level2_sa_algo) ? 2 : 
+                    (ssl->ctx->privateKeyType == dilithium_level3_sa_algo) ? 3 : 5);
+                
+                ssl->buffers.keyType = ssl->ctx->privateKeyType;
+            }
+        }*/
+
         ret = AllocKey(ssl, ssl->hsType, &ssl->hsKey);
         if (ret != 0) {
             goto exit_dpk;
         }
 
+        // This is where we set the Dilithium level - make sure it matches the keyType
         if (ssl->buffers.keyType == dilithium_level2_sa_algo) {
+            WOLFSSL_MSG_EX("Setting Dilithium level to 2 based on keyType: %d", ssl->buffers.keyType);
             ret = wc_dilithium_set_level((dilithium_key*)ssl->hsKey, 2);
         }
         else if (ssl->buffers.keyType == dilithium_level3_sa_algo) {
+            WOLFSSL_MSG_EX("Setting Dilithium level to 3 based on keyType: %d", ssl->buffers.keyType);
             ret = wc_dilithium_set_level((dilithium_key*)ssl->hsKey, 3);
         }
         else if (ssl->buffers.keyType == dilithium_level5_sa_algo) {
+            // Default to level 5 if not specifically level 2 or 3
+            WOLFSSL_MSG_EX("Setting Dilithium level to 5 based on keyType: %d", ssl->buffers.keyType);
             ret = wc_dilithium_set_level((dilithium_key*)ssl->hsKey, 5);
-        }
+        } 
         else {
             /* What if ssl->buffers.keyType is 0? We might want to do something
              * more graceful here. */
@@ -28181,7 +28278,7 @@ int DecodePrivateKey(WOLFSSL *ssl, word16* length)
             }
 
             /* Return the maximum signature length. */
-            *length = DILITHIUM_MAX_SIG_SIZE;
+            *length = (word16)wc_dilithium_sig_size((dilithium_key*)ssl->hsKey);
 
             goto exit_dpk;
         }
