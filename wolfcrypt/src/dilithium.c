@@ -24,6 +24,7 @@
 
 #ifdef HAVE_CONFIG_H
     #include <config.h>
+    #include <wolfssl/wolfcrypt/logging.h>
 #endif
 
 /* in case user set HAVE_PQC there */
